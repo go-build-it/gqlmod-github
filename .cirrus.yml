@@ -17,6 +17,13 @@ flake8_task:
   script:
     - flake8
 
+gencheck_task:
+  container:
+    image: xonsh/xonsh
+  script:
+    # Rerun gen, and test if anything has changed
+    - xonsh/gen.xsh
+    - if [ -z "$(git status --porcelain)" ]; then exit 0; else exit 1; fi
 
 build_task:
   container:
