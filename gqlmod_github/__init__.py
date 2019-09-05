@@ -2,7 +2,7 @@
 Provider for GitHub's v4 GraphQL API.
 """
 import itertools
-import importlib.resources
+import urllib.request
 
 import graphql
 
@@ -31,12 +31,22 @@ class GitHubProvider(UrllibJsonProvider):
     def __init__(self, token=None, username=None, password=None, client_id=None, client_secret=None):
         self.token = token
 
-    def modify_request(self, req):
+    def build_request(self, query, variables):
+        req = super().build_request(query, variables)
+        if '__previews' in variables:
+            req.add_header('Accept', ', '.join(
+                f"application/vnd.github.{p}+json"
+                for p in variables['__previews']
+            ))
+        return req
+
+    def modify_request(self, req, variables):
         if self.token:
             req.add_header('Authorization', f"Bearer {self.token}")
 
     def get_schema_str(self):
-        return importlib.resources.read_text(__name__, 'schema.graphql')
+        with urllib.request.urlopen("https://developer.github.com/v4/public_schema/schema.public.graphql") as fobj:
+            return fobj.read().decode('utf-8')
 
     def codegen_extra_kwargs(self, gast, schema):
         previews = set()
