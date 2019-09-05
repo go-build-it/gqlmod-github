@@ -28,7 +28,7 @@ def find_directive(ast_node, name):
 class GitHubProvider(UrllibJsonProvider):
     endpoint = 'https://api.github.com/graphql'
 
-    def __init__(self, token=None, username=None, password=None, client_id=None, client_secret=None):
+    def __init__(self, token=None):
         self.token = token
 
     def build_request(self, query, variables):
