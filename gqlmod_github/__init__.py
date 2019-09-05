@@ -40,6 +40,7 @@ class GitHubProvider(UrllibJsonProvider):
 
     def codegen_extra_kwargs(self, gast, schema):
         previews = set()
+        # Find all the @preview directives and pull out their names
         for field in itertools.chain(
             (f for _, _, f in walk_query(gast, schema)),
             (f for _, f in walk_variables(gast, schema)),
