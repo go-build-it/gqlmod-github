@@ -9,6 +9,7 @@ import re
 import time
 from urllib.request import urlopen, Request
 
+import dateutil.parser
 import jwcrypto.jwt
 import jwcrypto.jwk
 
@@ -114,6 +115,8 @@ def iter_pages(url, *, preview=None, bearer=None):
 class GithubApp:
     """
     Your Github Application
+
+    Please note: Not thread safe.
     """
     # Lifespan of generated tokens
     LIFESPAN = 10 * 60  # 10min, documented maxmimum
@@ -287,5 +290,43 @@ class GithubApp:
         )
         assert code == 200
         return body
+
+    def token_for_repo(self, owner_or_repo, repo=None, *, repo_id=None, permissions=None):
+        """
+        ga.token_for_repo("owner/repo") -> str
+        ga.token_for_repo("owner", "repo") -> str
+
+        Convenience shortcut to call get_repo_installation() and
+        make_installation_token() in one go.
+
+        Returns the token and expiration datetime
+
+        The permissions for the token may be passed in.
+
+        If the repo_id is passed in, the token will be scoped to it. If repo_id
+        is Ellipsis (...), then an extra API call will be made to resolve it.
+        """
+        if repo is None:
+            assert '/' in owner_or_repo
+            owner, repo = owner_or_repo.split('/', 1)
+        else:
+            owner, repo = owner_or_repo, repo
+
+        inst = self.get_repo_installation(owner, repo)
+
+        if repo_id is None:
+            repository_ids = None
+        elif repo_id is ...:
+            raise NotImplementedError("API to resolve repo_id not implemented yet")
+        else:
+            repository_ids = [repo_id]
+
+        token = self.make_installation_token(
+            inst['id'], permissions=permissions, repository_ids=repository_ids,
+        )
+
+        t = token['token']
+        exp = dateutil.parser.isoparse(token['expires_at'])
+        return t, exp
 
 # TODO: Write class for interrogating installations, using an installation token.
