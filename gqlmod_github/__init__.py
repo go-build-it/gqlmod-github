@@ -32,11 +32,13 @@ class GitHubProvider(UrllibJsonProvider):
         self.token = token
 
     def build_request(self, query, variables):
+        previews = variables.pop('__previews', None)
         req = super().build_request(query, variables)
-        if '__previews' in variables:
+        if previews:
+            # XXX: Can github accept more than one preview at once?
             req.add_header('Accept', ', '.join(
                 f"application/vnd.github.{p}+json"
-                for p in variables['__previews']
+                for p in previews
             ))
         return req
 
