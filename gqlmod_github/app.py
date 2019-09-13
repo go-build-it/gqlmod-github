@@ -4,12 +4,14 @@ Utilities for acting as an app and dealing with installations.
 This is basically a dramatically reduced v3 REST client focusing just on the app
 and installation features.
 """
+import contextlib
 import json
 import re
 import time
 from urllib.request import urlopen, Request
 
 import dateutil.parser
+import gqlmod
 import jwcrypto.jwt
 import jwcrypto.jwk
 
@@ -325,5 +327,26 @@ class GithubApp:
         t = token['token']
         exp = dateutil.parser.isoparse(token['expires_at'])
         return t, exp
+
+    @contextlib.contextmanager
+    def for_app(self):
+        """
+        Convenience shortcut to make this app the current github credentials.
+        """
+        # FIXME: What if it expires?
+        with gqlmod.with_provider('github', token=self.token):
+            yield
+
+    @contextlib.contextmanager
+    def for_repo(self, *pargs, **kwargs):
+        """
+        Convenience shortcut to make a repo the current github credentials.
+
+        Passes arguments to token_for_repo()
+        """
+        # FIXME: What if it expires?
+        token, exp = self.token_for_repo(*pargs, **kwargs)
+        with gqlmod.with_provider('github', token=token):
+            yield
 
 # TODO: Write class for interrogating installations, using an installation token.
