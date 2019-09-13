@@ -46,6 +46,18 @@ def parse_header_links(value):
         yield link
 
 
+def _build_accept(preview):
+    if isinstance(preview, (list, tuple)):
+        return ', '.join(
+            f"application/vnd.github.{p}+json"
+            for p in preview
+        )
+    elif isinstance(preview, str):
+        return f"application/vnd.github.{preview}+json"
+    else:
+        raise TypeError("Can't handle preview {preview!r}")
+
+
 def call_rest(method, url, *, body=None, preview=None, bearer=None):
     """
     Performs an API request, in the form of GitHub v3 API.
@@ -66,15 +78,7 @@ def call_rest(method, url, *, body=None, preview=None, bearer=None):
         data = None
 
     if preview:
-        if isinstance(preview, (list, tuple)):
-            headers['Accept'] = ', '.join(
-                f"application/vnd.github.{p}+json"
-                for p in preview
-            )
-        elif isinstance(preview, str):
-            headers['Accept'] = f"application/vnd.github.{preview}+json"
-        else:
-            raise TypeError("Can't handle preview {preview!r}")
+        headers['Accept'] = _build_accept(preview)
 
     req = Request(url, method=method, data=data, headers=headers)
 
