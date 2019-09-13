@@ -303,8 +303,7 @@ class GithubApp:
 
         The permissions for the token may be passed in.
 
-        If the repo_id is passed in, the token will be scoped to it. If repo_id
-        is Ellipsis (...), then an extra API call will be made to resolve it.
+        If the repo_id is passed in, the token will be scoped to it.
         """
         if repo is None:
             assert '/' in owner_or_repo
@@ -316,8 +315,6 @@ class GithubApp:
 
         if repo_id is None:
             repository_ids = None
-        elif repo_id is ...:
-            raise NotImplementedError("API to resolve repo_id not implemented yet")
         else:
             repository_ids = [repo_id]
 
