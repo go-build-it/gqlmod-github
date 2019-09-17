@@ -3,7 +3,7 @@ test_task:
     image: python:3
   setup_script:
     # Until we get release stuff rolling
-    - pip install "git+https://github.com/go-build-it/gqlmod.git#egg=gqlmod"
+    - pip install "git+https://github.com/gqlmod/gqlmod.git#egg=gqlmod"
     - pip install .
   test_script:
     - python setup.py test
