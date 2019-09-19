@@ -9,6 +9,7 @@ import json
 import re
 import time
 from urllib.request import urlopen, Request
+import urllib.error
 
 import dateutil.parser
 import gqlmod
@@ -80,9 +81,16 @@ def call_rest(method, url, *, body=None, preview=None, bearer=None):
     if preview:
         headers['Accept'] = _build_accept(preview)
 
+    if bearer:
+        headers['Authorization'] = f"Bearer {bearer}"
+
     req = Request(url, method=method, data=data, headers=headers)
 
-    resp = urlopen(req)
+    try:
+        resp = urlopen(req)
+    except urllib.error.HTTPError as exc:
+        print(exc.read())  # FIXME: Actual log
+        raise
 
     data = resp.read()
     if data:
@@ -103,7 +111,7 @@ def iter_pages(url, *, preview=None, bearer=None):
     """
     nextpage = url
     while nextpage:
-        code, info, body = call_rest('GET', url, preview=preview, bearer=None)
+        code, info, body = call_rest('GET', url, preview=preview, bearer=bearer)
         yield code, info, body
         link_header = info.get('Link', None)
         if not link_header:
@@ -152,8 +160,8 @@ class GithubApp:
                     "alg": "RS256",  # Hard coded
                 },
                 claims={
-                    "iat": now,
-                    "exp": self._expiration,
+                    "iat": int(now),
+                    "exp": int(self._expiration),
                     "iss": self.app_id,
                 },
             )
@@ -181,7 +189,7 @@ class GithubApp:
         https://developer.github.com/v3/apps/#get-the-authenticated-github-app
         """
         code, headers, body = call_rest(
-            'GET', '/apps', bearer=self.token, preview='machine-man-preview',
+            'GET', '/app', bearer=self.token, preview='machine-man-preview',
         )
         assert code == 200
         return body
@@ -241,7 +249,7 @@ class GithubApp:
             'POST', f'/app/installations/{installation_id}/access_tokens',
             body=params, bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
+        assert code == 201
         return body
 
     def get_org_installation(self, org):
