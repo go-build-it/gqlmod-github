@@ -58,3 +58,13 @@ mutation complete_check_run($repo:ID!, $checkrun:ID!, $state:CheckConclusionStat
         }
     }
 }
+
+query get_label($repo: ID!, $name: String!) {
+  node(id: $repo) {
+    ... on Repository {
+      label(name: $name) {
+        id
+      }
+    }
+  }
+}
