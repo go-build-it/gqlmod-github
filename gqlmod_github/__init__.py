@@ -6,7 +6,6 @@ import urllib.request
 
 import graphql
 
-from gqlmod.helpers.urllib import UrllibJsonProvider
 from gqlmod.helpers.utils import walk_query, walk_variables, unwrap_type
 
 
@@ -25,27 +24,27 @@ def find_directive(ast_node, name):
     }
 
 
-class GitHubProvider(UrllibJsonProvider):
+class GitHubBaseProvider:
     endpoint = 'https://api.github.com/graphql'
 
     def __init__(self, token=None):
         self.token = token
 
-    def build_request(self, query, variables):
+    def _build_accept_header(self, variables):
         previews = variables.pop('__previews', None)
-        req = super().build_request(query, variables)
         if previews:
             # XXX: Can github accept more than one preview at once?
-            req.add_header('Accept', ', '.join(
+            return ', '.join(
                 f"application/vnd.github.{p}+json"
                 for p in previews
-            ))
-        return req
+            )
+        else:
+            return "application/json"
 
-    def modify_request(self, req, variables):
-        if self.token:
-            req.add_header('Authorization', f"Bearer {self.token}")
+    def _build_authorization_header(self, variables):
+        return f"Bearer {self.token}"
 
+    # This can't be async
     def get_schema_str(self):
         with urllib.request.urlopen("https://developer.github.com/v4/public_schema/schema.public.graphql") as fobj:
             return fobj.read().decode('utf-8')
@@ -68,3 +67,32 @@ class GitHubProvider(UrllibJsonProvider):
         return {
             '__previews': previews,
         }
+
+
+try:
+    from gqlmod.helpers.urllib import UrllibJsonProvider
+except ImportError:
+    pass
+else:
+    class GitHubSyncProvider(GitHubBaseProvider, UrllibJsonProvider):
+        def build_request(self, query, variables):
+            req = super().build_request(query, variables)
+            req.add_header('Accept', self._build_accept_header(variables))
+            req.add_header('Authorization', self._build_authorization_header(variables))
+            return req
+
+
+try:
+    from gqlmod.helpers.aiohttp import AiohttpProvider
+except ImportError:
+    pass
+else:
+    class GitHubAsyncProvider(GitHubBaseProvider, AiohttpProvider):
+        use_json = True
+
+        def modify_request_args(self, variables, kwargs):
+            super().modify_request_args(kwargs)
+            kwargs.setdefault('headers', {}).update({
+                'Accept': self._build_accept_header(variables),
+                'Authorization': self._build_authorization_header(variables)
+            })
