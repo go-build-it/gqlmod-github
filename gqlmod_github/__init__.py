@@ -24,6 +24,21 @@ def find_directive(ast_node, name):
     }
 
 
+def _build_accept(previews):
+    if isinstance(previews, (list, tuple)):
+        if previews:
+            return ', '.join(
+                f"application/vnd.github.{p}+json"
+                for p in previews
+            )
+        else:
+            return "application/json"
+    elif isinstance(previews, str):
+        return f"application/vnd.github.{previews}+json"
+    else:
+        raise TypeError("Can't handle preview {previews!r}")
+
+
 class GitHubBaseProvider:
     endpoint = 'https://api.github.com/graphql'
 
@@ -32,14 +47,7 @@ class GitHubBaseProvider:
 
     def _build_accept_header(self, variables):
         previews = variables.pop('__previews', None)
-        if previews:
-            # XXX: Can github accept more than one preview at once?
-            return ', '.join(
-                f"application/vnd.github.{p}+json"
-                for p in previews
-            )
-        else:
-            return "application/json"
+        return _build_accept(previews)
 
     def _build_authorization_header(self, variables):
         return f"Bearer {self.token}"

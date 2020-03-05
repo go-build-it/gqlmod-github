@@ -6,10 +6,8 @@ and installation features.
 """
 import contextlib
 import json
-import re
-from urllib.request import urlopen, Request
-import urllib.error
 
+import aiohttp
 import dateutil.parser
 import gqlmod
 
@@ -17,37 +15,7 @@ from . import _build_accept
 from ._app_base import GithubBaseApp
 
 
-# From https://github.com/psf/requests/blob/f5dacf84468ab7e0631cc61a3f1431a32e3e143c/requests/utils.py#L580-L611
-def parse_header_links(value):
-    """Return a dict of parsed link headers proxies.
-
-    i.e. Link: <http:/.../front.jpeg>; rel=front; type="image/jpeg",<http://.../back.jpeg>; rel=back;type="image/jpeg"
-
-    """
-
-    replace_chars = " '\""
-
-    for val in re.split(", *<", value):
-        try:
-            url, params = val.split(";", 1)
-        except ValueError:
-            url, params = val, ''
-
-        link = {}
-        link["url"] = url.strip("<> '\"")
-
-        for param in params.split(";"):
-            try:
-                key, value = param.split("=")
-            except ValueError:
-                break
-
-            link[key.strip(replace_chars)] = value.strip(replace_chars)
-
-        yield link
-
-
-def call_rest(method, url, *, body=None, preview=None, bearer=None):
+async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     """
     Performs an API request, in the form of GitHub v3 API.
     """
@@ -72,24 +40,10 @@ def call_rest(method, url, *, body=None, preview=None, bearer=None):
     if bearer:
         headers['Authorization'] = f"Bearer {bearer}"
 
-    req = Request(url, method=method, data=data, headers=headers)
-
-    try:
-        resp = urlopen(req)
-    except urllib.error.HTTPError as exc:
-        print(exc.read())  # FIXME: Actual log
-        raise
-
-    data = resp.read()
-    if data:
-        rbody = json.loads(data.decode('utf-8'))
-    else:
-        rbody = None
-
-    return resp.getcode(), resp.info(), rbody
+    return await aiohttp.request(method, url, headers=headers, data=data, raise_for_status=True)
 
 
-def iter_pages(url, *, preview=None, bearer=None):
+async def iter_pages(url, *, preview=None, bearer=None):
     """
     Run a request, and follow the "next" URL in the Link header, recursively.
 
@@ -99,19 +53,19 @@ def iter_pages(url, *, preview=None, bearer=None):
     """
     nextpage = url
     while nextpage:
-        code, info, body = call_rest('GET', url, preview=preview, bearer=bearer)
-        yield code, info, body
-        link_header = info.get('Link', None)
-        if not link_header:
+        resp = await call_rest('GET', url, preview=preview, bearer=bearer)
+        yield resp
+
+        if 'next' not in resp.links:
             break
 
-        links = {
-            link['rel']: link['url']
-            for link in parse_header_links(link_header)
-            if 'rel' in link
-        }
+        nexts = list(resp.links['next'].keys())
+        assert 0 <= len(nexts) <= 1
 
-        nextpage = links.get('next', None)
+        if nexts:
+            nextpage = nexts[0]
+        else:
+            break
 
 
 class GithubApp(GithubBaseApp):
@@ -120,31 +74,29 @@ class GithubApp(GithubBaseApp):
 
     Please note: Not thread safe.
     """
-    def get_app(self, slug):
+    async def get_app(self, slug):
         """
         Get the app information, by slug
 
         https://developer.github.com/v3/apps/#get-a-single-github-app
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', f'/apps/{slug}', bearer=self.token, preview='machine-man-preview'
         )
-        assert code == 200
-        return body
+        return await resp.json(content_type=False)
 
-    def get_this_app(self):
+    async def get_this_app(self):
         """
         Get the app information for the current app
 
         https://developer.github.com/v3/apps/#get-the-authenticated-github-app
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', '/app', bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
-        return body
+        return await resp.json(content_type=False)
 
-    def iter_installations(self):
+    async def iter_installations(self):
         """
         Generate all installations.
 
@@ -152,38 +104,37 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#list-installations
         """
-        for code, info, page in iter_pages(
+        async for resp in iter_pages(
             '/app/installations', bearer=self.token, preview='machine-man-preview',
         ):
-            assert code == 200
-            yield from page
+            for inst in await resp.json(content_type=False):
+                yield inst
 
-    def get_installation(self, installation_id):
+    async def get_installation(self, installation_id):
         """
         Get an installation, by ID.
 
         https://developer.github.com/v3/apps/#get-an-installation
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', f'/app/installations/{installation_id}',
             bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
-        return body
+        return await resp.json(content_type=False)
 
-    def delete_installation(self, installation_id):
+    async def delete_installation(self, installation_id):
         """
         Delete an installation, by ID.
 
         https://developer.github.com/v3/apps/#delete-an-installation
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'DELETE', f'/app/installations/{installation_id}',
             bearer=self.token, preview=['machine-man-preview', 'gambit-preview'],
         )
-        assert code == 204
+        assert resp.status == 204
 
-    def make_installation_token(self, installation_id, *, repository_ids=None, permissions=None):
+    async def make_installation_token(self, installation_id, *, repository_ids=None, permissions=None):
         """
         Produce an installation token.
 
@@ -197,67 +148,67 @@ class GithubApp(GithubBaseApp):
             params['repository_ids'] = repository_ids
         if permissions:
             params['permissions'] = permissions
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'POST', f'/app/installations/{installation_id}/access_tokens',
             body=params, bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 201
-        return body
+        assert resp.status == 201
+        return await resp.json(content_type=False)
 
-    def get_org_installation(self, org):
+    async def get_org_installation(self, org):
         """
         Get an installation, by organization.
 
         https://developer.github.com/v3/apps/#get-an-organization-installation
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', f'/orgs/{org}/installation',
             bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
-        return body
+        assert resp.status == 200
+        return await resp.json(content_type=False)
 
-    def get_repo_installation(self, owner, repo):
+    async def get_repo_installation(self, owner, repo):
         """
         Get an installation, by owner and repository.
 
         https://developer.github.com/v3/apps/#get-a-repository-installation
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', f'/repos/{owner}/{repo}/installation',
             bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
-        return body
+        assert resp.status == 200
+        return await resp.json(content_type=False)
 
-    def get_user_installation(self, username):
+    async def get_user_installation(self, username):
         """
         Get an installation, by user
 
         https://developer.github.com/v3/apps/#get-a-user-installation
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'GET', f'/users/{username}/installation',
             bearer=self.token, preview='machine-man-preview',
         )
-        assert code == 200
-        return body
+        assert resp.status == 200
+        return await resp.json(content_type=False)
 
     @staticmethod
-    def create_app_from_manifest(code):
+    async def create_app_from_manifest(code):
         """
         Create a new application from a previously-submitted manifest.
 
         https://developer.github.com/v3/apps/#create-a-github-app-from-a-manifest
         """
-        code, headers, body = call_rest(
+        resp = await call_rest(
             'POST', f'/app-manifests/{code}/conversions',
             preview='fury-preview',
         )
-        assert code == 200
-        return body
+        assert resp.status == 200
+        return await resp.json(content_type=False)
 
-    def token_for_repo(self, owner_or_repo, repo=None, *, repo_id=None, permissions=None):
+    async def token_for_repo(self, owner_or_repo, repo=None, *, repo_id=None, permissions=None):
         """
         ga.token_for_repo("owner/repo") -> str
         ga.token_for_repo("owner", "repo") -> str
@@ -277,14 +228,14 @@ class GithubApp(GithubBaseApp):
         else:
             owner, repo = owner_or_repo, repo
 
-        inst = self.get_repo_installation(owner, repo)
+        inst = await self.get_repo_installation(owner, repo)
 
         if repo_id is None:
             repository_ids = None
         else:
             repository_ids = [repo_id]
 
-        token = self.make_installation_token(
+        token = await self.make_installation_token(
             inst['id'], permissions=permissions, repository_ids=repository_ids,
         )
 
