@@ -25,7 +25,7 @@ def find_directive(ast_node, name):
 
 
 def _build_accept(previews):
-    if isinstance(previews, (list, tuple)):
+    if isinstance(previews, (list, tuple, set)):
         if previews:
             return ', '.join(
                 f"application/vnd.github.{p}+json"
@@ -36,7 +36,7 @@ def _build_accept(previews):
     elif isinstance(previews, str):
         return f"application/vnd.github.{previews}+json"
     else:
-        raise TypeError("Can't handle preview {previews!r}")
+        raise TypeError(f"Can't handle preview {previews!r}")
 
 
 class GitHubBaseProvider:
@@ -84,7 +84,9 @@ except ImportError:
 else:
     class GitHubSyncProvider(GitHubBaseProvider, UrllibJsonProvider):
         def build_request(self, query, variables):
-            req = super().build_request(query, variables)
+            qvars = variables.copy()
+            qvars.pop('__previews')
+            req = super().build_request(query, qvars)
             req.add_header('Accept', self._build_accept_header(variables))
             req.add_header('Authorization', self._build_authorization_header(variables))
             return req
@@ -104,3 +106,4 @@ else:
                 'Accept': self._build_accept_header(variables),
                 'Authorization': self._build_authorization_header(variables)
             })
+            kwargs['json'].pop('__previews')

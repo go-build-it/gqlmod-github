@@ -15,6 +15,7 @@ from . import _build_accept
 from ._app_base import GithubBaseApp
 
 
+@contextlib.asynccontextmanager
 async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     """
     Performs an API request, in the form of GitHub v3 API.
@@ -40,7 +41,8 @@ async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     if bearer:
         headers['Authorization'] = f"Bearer {bearer}"
 
-    return await aiohttp.request(method, url, headers=headers, data=data, raise_for_status=True)
+    async with aiohttp.request(method, url, headers=headers, data=data, raise_for_status=True) as resp:
+        yield resp
 
 
 async def iter_pages(url, *, preview=None, bearer=None):
@@ -53,19 +55,19 @@ async def iter_pages(url, *, preview=None, bearer=None):
     """
     nextpage = url
     while nextpage:
-        resp = await call_rest('GET', url, preview=preview, bearer=bearer)
-        yield resp
+        async with call_rest('GET', url, preview=preview, bearer=bearer) as resp:
+            yield resp
 
-        if 'next' not in resp.links:
-            break
+            if 'next' not in resp.links:
+                break
 
-        nexts = list(resp.links['next'].keys())
-        assert 0 <= len(nexts) <= 1
+            nexts = list(resp.links['next'].keys())
+            assert 0 <= len(nexts) <= 1
 
-        if nexts:
-            nextpage = nexts[0]
-        else:
-            break
+            if nexts:
+                nextpage = nexts[0]
+            else:
+                break
 
 
 class GithubApp(GithubBaseApp):
@@ -80,10 +82,10 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-a-single-github-app
         """
-        resp = await call_rest(
+        async with call_rest(
             'GET', f'/apps/{slug}', bearer=self.token, preview='machine-man-preview'
-        )
-        return await resp.json(content_type=False)
+        ) as resp:
+            return await resp.json(content_type=False)
 
     async def get_this_app(self):
         """
@@ -91,10 +93,10 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-the-authenticated-github-app
         """
-        resp = await call_rest(
+        async with call_rest(
             'GET', '/app', bearer=self.token, preview='machine-man-preview',
-        )
-        return await resp.json(content_type=False)
+        ) as resp:
+            return await resp.json(content_type=False)
 
     async def iter_installations(self):
         """
@@ -116,11 +118,11 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-an-installation
         """
-        resp = await call_rest(
+        async with await call_rest(
             'GET', f'/app/installations/{installation_id}',
             bearer=self.token, preview='machine-man-preview',
-        )
-        return await resp.json(content_type=False)
+        ) as resp:
+            return await resp.json(content_type=False)
 
     async def delete_installation(self, installation_id):
         """
@@ -128,11 +130,11 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#delete-an-installation
         """
-        resp = await call_rest(
+        async with await call_rest(
             'DELETE', f'/app/installations/{installation_id}',
             bearer=self.token, preview=['machine-man-preview', 'gambit-preview'],
-        )
-        assert resp.status == 204
+        ) as resp:
+            assert resp.status == 204
 
     async def make_installation_token(self, installation_id, *, repository_ids=None, permissions=None):
         """
@@ -148,12 +150,12 @@ class GithubApp(GithubBaseApp):
             params['repository_ids'] = repository_ids
         if permissions:
             params['permissions'] = permissions
-        resp = await call_rest(
+        async with call_rest(
             'POST', f'/app/installations/{installation_id}/access_tokens',
             body=params, bearer=self.token, preview='machine-man-preview',
-        )
-        assert resp.status == 201
-        return await resp.json(content_type=False)
+        ) as resp:
+            assert resp.status == 201
+            return await resp.json(content_type=False)
 
     async def get_org_installation(self, org):
         """
@@ -161,12 +163,12 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-an-organization-installation
         """
-        resp = await call_rest(
+        async with call_rest(
             'GET', f'/orgs/{org}/installation',
             bearer=self.token, preview='machine-man-preview',
-        )
-        assert resp.status == 200
-        return await resp.json(content_type=False)
+        ) as resp:
+            assert resp.status == 200
+            return await resp.json(content_type=False)
 
     async def get_repo_installation(self, owner, repo):
         """
@@ -174,12 +176,12 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-a-repository-installation
         """
-        resp = await call_rest(
+        async with call_rest(
             'GET', f'/repos/{owner}/{repo}/installation',
             bearer=self.token, preview='machine-man-preview',
-        )
-        assert resp.status == 200
-        return await resp.json(content_type=False)
+        ) as resp:
+            assert resp.status == 200
+            return await resp.json(content_type=False)
 
     async def get_user_installation(self, username):
         """
@@ -187,12 +189,12 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#get-a-user-installation
         """
-        resp = await call_rest(
+        async with call_rest(
             'GET', f'/users/{username}/installation',
             bearer=self.token, preview='machine-man-preview',
-        )
-        assert resp.status == 200
-        return await resp.json(content_type=False)
+        ) as resp:
+            assert resp.status == 200
+            return await resp.json(content_type=False)
 
     @staticmethod
     async def create_app_from_manifest(code):
@@ -201,12 +203,12 @@ class GithubApp(GithubBaseApp):
 
         https://developer.github.com/v3/apps/#create-a-github-app-from-a-manifest
         """
-        resp = await call_rest(
+        async with call_rest(
             'POST', f'/app-manifests/{code}/conversions',
             preview='fury-preview',
-        )
-        assert resp.status == 200
-        return await resp.json(content_type=False)
+        ) as resp:
+            assert resp.status == 200
+            return await resp.json(content_type=False)
 
     async def token_for_repo(self, owner_or_repo, repo=None, *, repo_id=None, permissions=None):
         """
