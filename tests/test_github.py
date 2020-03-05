@@ -9,11 +9,11 @@ def test_get_schema():
 
 def test_import():
     gqlmod.enable_gql_import()
-    import tests.queries  # noqa
+    import queries  # noqa
     # TODO: Actually check previews got detected
 
 
 def test_async_import():
     gqlmod.enable_gql_import()
-    import tests.queries_async  # noqa
+    import queries_async  # noqa
     # TODO: Actually check previews got detected

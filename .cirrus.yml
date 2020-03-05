@@ -2,12 +2,9 @@ test_task:
   container:
     image: python:3
   setup_script:
-    # Until we get release stuff rolling
-    - pip install "git+https://github.com/gqlmod/gqlmod.git#egg=gqlmod"
-    - pip install .[app,sync,async]
+    - pip install -r requirements-test.txt
   test_script:
-    - python setup.py test
-
+    - pytest
 
 flake8_task:
   container:
