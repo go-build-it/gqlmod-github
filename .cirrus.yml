@@ -4,7 +4,7 @@ test_task:
   setup_script:
     # Until we get release stuff rolling
     - pip install "git+https://github.com/gqlmod/gqlmod.git#egg=gqlmod"
-    - pip install .
+    - pip install .[app,sync,async]
   test_script:
     - python setup.py test
 
