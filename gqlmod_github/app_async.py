@@ -5,6 +5,7 @@ This is basically a dramatically reduced v3 REST client focusing just on the app
 and installation features.
 """
 import contextlib
+import logging
 import json
 
 import aiohttp
@@ -13,6 +14,8 @@ import gqlmod
 
 from . import _build_accept
 from ._app_base import GithubBaseApp
+
+log = logging.getLogger(__name__)
 
 
 class GithubError(aiohttp.ClientResponseError):
@@ -51,6 +54,7 @@ async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     if bearer:
         headers['Authorization'] = f"Bearer {bearer}"
 
+    log.debug("Calling %s %r", method, url)
     async with aiohttp.request(method, url, headers=headers, data=data) as resp:
         if 400 <= resp.status:
             raise GithubError(
@@ -74,19 +78,13 @@ async def iter_pages(url, *, preview=None, bearer=None):
     """
     nextpage = url
     while nextpage:
-        async with call_rest('GET', url, preview=preview, bearer=bearer) as resp:
+        async with call_rest('GET', nextpage, preview=preview, bearer=bearer) as resp:
             yield resp
 
             if 'next' not in resp.links:
                 break
 
-            nexts = list(resp.links['next'].keys())
-            assert 0 <= len(nexts) <= 1
-
-            if nexts:
-                nextpage = nexts[0]
-            else:
-                break
+            nextpage = str(resp.links['next']['url'])
 
 
 class GithubApp(GithubBaseApp):
