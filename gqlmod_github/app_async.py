@@ -15,6 +15,16 @@ from . import _build_accept
 from ._app_base import GithubBaseApp
 
 
+class GithubError(aiohttp.ClientResponseError):
+    def __init__(self, *p, body, **kw):
+        super().__init__(*p, **kw)
+        self.body = body
+
+    def __str__(self) -> str:
+        return ("%s, message=%r, url=%r\n%s" %
+                (self.status, self.message, self.request_info.real_url, self.body))
+
+
 @contextlib.asynccontextmanager
 async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     """
@@ -41,7 +51,16 @@ async def call_rest(method, url, *, body=None, preview=None, bearer=None):
     if bearer:
         headers['Authorization'] = f"Bearer {bearer}"
 
-    async with aiohttp.request(method, url, headers=headers, data=data, raise_for_status=True) as resp:
+    async with aiohttp.request(method, url, headers=headers, data=data) as resp:
+        if 400 <= resp.status:
+            raise GithubError(
+                resp.request_info,
+                resp.history,
+                status=resp.status,
+                message=resp.reason,
+                headers=resp.headers,
+                body=await resp.text(),
+            )
         yield resp
 
 
