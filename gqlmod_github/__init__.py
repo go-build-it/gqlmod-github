@@ -35,6 +35,8 @@ def _build_accept(previews):
             return "application/json"
     elif isinstance(previews, str):
         return f"application/vnd.github.{previews}+json"
+    elif previews is None:
+        return "application/json"
     else:
         raise TypeError(f"Can't handle preview {previews!r}")
 
@@ -46,7 +48,7 @@ class GitHubBaseProvider:
         self.token = token
 
     def _build_accept_header(self, variables):
-        previews = variables.pop('__previews', None)
+        previews = variables.pop('__previews', set())
         return _build_accept(previews)
 
     def _build_authorization_header(self, variables):
@@ -101,9 +103,9 @@ else:
         use_json = True
 
         def modify_request_args(self, variables, kwargs):
-            super().modify_request_args(kwargs)
+            super().modify_request_args(variables, kwargs)
             kwargs.setdefault('headers', {}).update({
                 'Accept': self._build_accept_header(variables),
                 'Authorization': self._build_authorization_header(variables)
             })
-            kwargs['json'].pop('__previews')
+            kwargs['json']['variables'].pop('__previews', None)
