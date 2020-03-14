@@ -268,19 +268,31 @@ class GithubApp(GithubBaseApp):
         Convenience shortcut to make this app the current github credentials.
         """
         # FIXME: What if it expires?
-        with gqlmod.with_provider('github', token=self.token):
+        with gqlmod.with_provider('github-async', token=self.token):
             yield
 
-    @contextlib.contextmanager
-    def for_repo(self, *pargs, **kwargs):
+    @contextlib.asynccontextmanager
+    async def for_repo(self, *pargs, **kwargs):
         """
         Convenience shortcut to make a repo the current github credentials.
 
         Passes arguments to token_for_repo()
         """
         # FIXME: What if it expires?
-        token, exp = self.token_for_repo(*pargs, **kwargs)
-        with gqlmod.with_provider('github', token=token):
-            yield
+        token, exp = await self.token_for_repo(*pargs, **kwargs)
+        with gqlmod.with_provider('github-async', token=token):
+            yield token
+
+    @contextlib.asynccontextmanager
+    async def for_installation(self, inst_id, *, repo_id=None):
+        """
+        Convenience shortcut to make an installation the current github credentials.
+        """
+        # FIXME: What if it expires?
+        token_info = await self.make_installation_token(
+            inst_id, repository_ids=[repo_id] if repo_id else None,
+        )
+        with gqlmod.with_provider('github-async', token=token_info['token']):
+            yield token_info['token']
 
 # TODO: Write class for interrogating installations, using an installation token.

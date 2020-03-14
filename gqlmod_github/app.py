@@ -313,4 +313,16 @@ class GithubApp(GithubBaseApp):
         with gqlmod.with_provider('github', token=token):
             yield
 
+    @contextlib.contextmanager
+    def for_installation(self, inst_id, *, repo_id=None):
+        """
+        Convenience shortcut to make an installation the current github credentials.
+        """
+        # FIXME: What if it expires?
+        token_info = self.make_installation_token(
+            inst_id, repository_ids=[repo_id] if repo_id else None,
+        )
+        with gqlmod.with_provider('github', token=token_info['token']):
+            yield
+
 # TODO: Write class for interrogating installations, using an installation token.
