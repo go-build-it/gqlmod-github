@@ -1,4 +1,12 @@
 import gqlmod
+import gqlmod_github
+from gqlmod.providers import _mock_provider
+
+
+class MockGithubProvider(gqlmod_github.GitHubBaseProvider):
+    def __call__(self, query, variables):
+        self.last_query = query
+        self.last_vars = variables
 
 
 def test_get_schema():
@@ -10,10 +18,40 @@ def test_get_schema():
 def test_import():
     gqlmod.enable_gql_import()
     import queries  # noqa
-    # TODO: Actually check previews got detected
+    prov = MockGithubProvider()
+    with _mock_provider('github', prov):
+        queries.Login()
+        assert prov.last_vars['__previews'] == set()
+
+        queries.start_check_run(repo=123, sha="beefbabe")
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
+
+        queries.append_check_run(repo=123, checkrun=456)
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
+
+        queries.get_label(repo=123, name="spam")
+        assert prov.last_vars['__previews'] == set()
+
+        queries.get_check_run(id=123)
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
 
 
 def test_async_import():
     gqlmod.enable_gql_import()
     import queries_async  # noqa
-    # TODO: Actually check previews got detected
+    prov = MockGithubProvider()
+    with _mock_provider('github-async', prov):
+        queries_async.Login()
+        assert prov.last_vars['__previews'] == set()
+
+        queries_async.start_check_run(repo=123, sha="beefbabe")
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
+
+        queries_async.append_check_run(repo=123, checkrun=456)
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
+
+        queries_async.get_label(repo=123, name="spam")
+        assert prov.last_vars['__previews'] == set()
+
+        queries_async.get_check_run(id=123)
+        assert prov.last_vars['__previews'] == {'antiope-preview'}
