@@ -13,10 +13,10 @@ query Login {
     }
 }
 
-mutation start_check_run($repo:ID!, $sha:GitObjectID!) {
+mutation start_check_run($repo:ID!, $sha:GitObjectID!, $name:String="spam") {
     createCheckRun(input: {
         headSha: $sha
-        name: "gqlmod check"
+        name: $name
         repositoryId: $repo
         status: IN_PROGRESS
     }) {
