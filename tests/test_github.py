@@ -24,16 +24,19 @@ def test_import():
         assert prov.last_vars['__previews'] == set()
 
         queries.start_check_run(repo=123, sha="beefbabe")
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
 
         queries.append_check_run(repo=123, checkrun=456)
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
 
         queries.get_label(repo=123, name="spam")
         assert prov.last_vars['__previews'] == set()
 
         queries.get_check_run(id=123)
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
+
+        queries.go_deploy(id=123, repo=456)
+        assert prov.last_vars['__previews'] == {"flash-preview"}
 
 
 def test_async_import():
@@ -45,13 +48,16 @@ def test_async_import():
         assert prov.last_vars['__previews'] == set()
 
         queries_async.start_check_run(repo=123, sha="beefbabe")
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
 
         queries_async.append_check_run(repo=123, checkrun=456)
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
 
         queries_async.get_label(repo=123, name="spam")
         assert prov.last_vars['__previews'] == set()
 
         queries_async.get_check_run(id=123)
-        assert prov.last_vars['__previews'] == {'antiope-preview'}
+        assert prov.last_vars['__previews'] == set()
+
+        queries_async.go_deploy(id=123, repo=456)
+        assert prov.last_vars['__previews'] == {"flash-preview"}
