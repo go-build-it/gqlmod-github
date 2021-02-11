@@ -77,7 +77,7 @@ class GitHubBaseProvider:
 
     # This can't be async
     def get_schema_str(self):
-        with urllib.request.urlopen("https://developer.github.com/v4/public_schema/schema.public.graphql") as fobj:
+        with urllib.request.urlopen("https://docs.github.com/public/schema.docs.graphql") as fobj:
             return fobj.read().decode('utf-8')
 
     def codegen_extra_kwargs(self, gast, schema):

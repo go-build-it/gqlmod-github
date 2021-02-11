@@ -59,3 +59,15 @@ query get_check_run($id:ID!) {
     }
   }
 }
+
+mutation go_deploy($id:ID!, $repo:ID!) {
+    createDeployment(input:{
+        refId: $id,
+        repositoryId: $repo,
+        requiredContexts: [],
+    }) {
+        deployment {
+            id
+        }
+    }
+}
