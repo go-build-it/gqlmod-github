@@ -2,7 +2,7 @@ test_task:
   container:
     image: python:3
   setup_script:
-    - pip install -r requirements-test.txt
+    - pip install --use-deprecated=legacy-resolver -r requirements-test.txt
   test_script:
     - pytest
 
