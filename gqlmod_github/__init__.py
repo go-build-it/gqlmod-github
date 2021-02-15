@@ -1,11 +1,10 @@
 """
 Provider for GitHub's v4 GraphQL API.
 """
-import urllib.request
-
 import graphql
 
 from gqlmod.helpers.types import get_schema, get_type
+from gqlmod.helpers.httpx import HttpxProvider
 
 
 def find_directive(ast_node, name):
@@ -62,7 +61,7 @@ def _build_accept(previews):
         raise TypeError(f"Can't handle preview {previews!r}")
 
 
-class GitHubBaseProvider:
+class GitHubProvider(HttpxProvider):
     endpoint = 'https://api.github.com/graphql'
 
     def __init__(self, token=None):
@@ -77,8 +76,9 @@ class GitHubBaseProvider:
 
     # This can't be async
     def get_schema_str(self):
-        with urllib.request.urlopen("https://docs.github.com/public/schema.docs.graphql") as fobj:
-            return fobj.read().decode('utf-8')
+        # TODO: Caching?
+        resp = self.session_sync.get("https://docs.github.com/public/schema.docs.graphql")
+        return resp.text
 
     def codegen_extra_kwargs(self, gast, schema):
         visitor = PreviewFinder()
@@ -87,34 +87,10 @@ class GitHubBaseProvider:
             '__previews': visitor.previews,
         }
 
-
-try:
-    from gqlmod.helpers.urllib import UrllibJsonProvider
-except ImportError:
-    pass
-else:
-    class GitHubSyncProvider(GitHubBaseProvider, UrllibJsonProvider):
-        def build_request(self, query, variables):
-            qvars = variables.copy()
-            qvars.pop('__previews')
-            req = super().build_request(query, qvars)
-            req.add_header('Accept', self._build_accept_header(variables))
-            req.add_header('Authorization', self._build_authorization_header(variables))
-            return req
-
-
-try:
-    from gqlmod.helpers.aiohttp import AiohttpProvider
-except ImportError:
-    pass
-else:
-    class GitHubAsyncProvider(GitHubBaseProvider, AiohttpProvider):
-        use_json = True
-
-        def modify_request_args(self, variables, kwargs):
-            super().modify_request_args(variables, kwargs)
-            kwargs.setdefault('headers', {}).update({
-                'Accept': self._build_accept_header(variables),
-                'Authorization': self._build_authorization_header(variables)
-            })
-            kwargs['json']['variables'].pop('__previews', None)
+    def build_request(self, query, variables):
+        qvars = variables.copy()
+        qvars.pop('__previews')
+        req = super().build_request(query, qvars)
+        req.headers['Accept'] = self._build_accept_header(variables)
+        req.headers['Authorization'] = self._build_authorization_header(variables)
+        return req

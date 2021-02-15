@@ -1,4 +1,4 @@
-git+https://github.com/gqlmod/gqlmod.git#egg=gqlmod
+git+https://github.com/gqlmod/gqlmod.git#egg=gqlmod[httpx]
 .[app,sync,async]
 
 pytest
