@@ -62,7 +62,7 @@ def _build_accept(previews):
         raise TypeError(f"Can't handle preview {previews!r}")
 
 
-class GitHubBaseProvider(HttpxProvider):
+class GitHubProvider(HttpxProvider):
     endpoint = 'https://api.github.com/graphql'
 
     def __init__(self, token=None):
@@ -78,8 +78,8 @@ class GitHubBaseProvider(HttpxProvider):
     # This can't be async
     def get_schema_str(self):
         # TODO: Caching?
-        with httpx.get("https://docs.github.com/public/schema.docs.graphql") as resp:
-            return resp.text
+        resp = self.session_sync.get("https://docs.github.com/public/schema.docs.graphql")
+        return resp.text
 
     def codegen_extra_kwargs(self, gast, schema):
         visitor = PreviewFinder()

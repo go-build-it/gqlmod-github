@@ -1,22 +1,34 @@
+import pytest
+
 import gqlmod
+import gqlmod.enable  # noqa
 import gqlmod_github
 from gqlmod.providers import _mock_provider
 
 
-class MockGithubProvider(gqlmod_github.GitHubBaseProvider):
-    def __call__(self, query, variables):
+class MockGithubProvider(gqlmod_github.GitHubProvider):
+    def query_sync(self, query, variables):
+        print("sync")
+        self.last_query = query
+        self.last_vars = variables
+
+    async def query_async(self, query, variables):
+        print("async")
         self.last_query = query
         self.last_vars = variables
 
 
 def test_get_schema():
     assert gqlmod.providers.query_for_schema('github')
-    assert gqlmod.providers.query_for_schema('github-sync')
-    assert gqlmod.providers.query_for_schema('github-async')
+
+
+@pytest.mark.parametrize('name', ['queries', 'queries_sync', 'queries_async'])
+def test_imports(name):
+    mod = __import__(name)
+    assert mod.__name__ == name
 
 
 def test_import():
-    gqlmod.enable_gql_import()
     import queries  # noqa
     prov = MockGithubProvider()
     with _mock_provider('github', prov):
@@ -39,25 +51,30 @@ def test_import():
         assert prov.last_vars['__previews'] == {"flash-preview"}
 
 
-def test_async_import():
-    gqlmod.enable_gql_import()
+@pytest.mark.asyncio
+async def test_async_import():
     import queries_async  # noqa
+
+    assert queries_async.__file__.endswith('/queries.gql')
+
     prov = MockGithubProvider()
-    with _mock_provider('github-async', prov):
-        queries_async.Login()
+    with _mock_provider('github', prov):
+        assert gqlmod.providers.get_provider('github') is prov
+
+        await queries_async.Login()
         assert prov.last_vars['__previews'] == set()
 
-        queries_async.start_check_run(repo=123, sha="beefbabe")
+        await queries_async.start_check_run(repo=123, sha="beefbabe")
         assert prov.last_vars['__previews'] == set()
 
-        queries_async.append_check_run(repo=123, checkrun=456)
+        await queries_async.append_check_run(repo=123, checkrun=456)
         assert prov.last_vars['__previews'] == set()
 
-        queries_async.get_label(repo=123, name="spam")
+        await queries_async.get_label(repo=123, name="spam")
         assert prov.last_vars['__previews'] == set()
 
-        queries_async.get_check_run(id=123)
+        await queries_async.get_check_run(id=123)
         assert prov.last_vars['__previews'] == set()
 
-        queries_async.go_deploy(id=123, repo=456)
+        await queries_async.go_deploy(id=123, repo=456)
         assert prov.last_vars['__previews'] == {"flash-preview"}
