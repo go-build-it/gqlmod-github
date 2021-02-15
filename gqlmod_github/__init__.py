@@ -2,7 +2,6 @@
 Provider for GitHub's v4 GraphQL API.
 """
 import graphql
-import httpx
 
 from gqlmod.helpers.types import get_schema, get_type
 from gqlmod.helpers.httpx import HttpxProvider
